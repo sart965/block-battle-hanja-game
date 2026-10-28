@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>블럭배틀킹 - 사자성어</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Malgun Gothic","Noto Sans KR",sans-serif;background:radial-gradient(circle at 50% 10%,#243a5c,#0a1020 65%);color:#fff;min-height:100vh;display:flex;justify-content:center;align-items:center}
+.game{width:min(1100px,96vw);padding:18px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.logo{font-size:clamp(24px,4vw,42px);font-weight:900;letter-spacing:-2px;text-shadow:0 4px 0 #08101f}
+.logo span{color:#ffd43b}
+.hud{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.badge{background:#111b31;border:2px solid #34496d;border-radius:14px;padding:8px 14px;font-weight:800}
+.timer{font-size:24px;color:#ffe45c;min-width:88px;text-align:center}
+.timer.danger{color:#ff6b6b;animation:pulse .5s infinite alternate}
+@keyframes pulse{to{transform:scale(1.08)}}
+@keyframes hintGlow{to{filter:brightness(1.8);transform:scale(1.08);box-shadow:0 0 22px #ffe45c,inset 0 -5px 0 #07101b}}
+.info{display:flex;justify-content:space-between;align-items:center;background:#111a2c;border:2px solid #33476a;border-radius:14px;padding:10px 14px;margin-bottom:10px}
+.target{font-size:20px;font-weight:900}.target b{color:#63e6ff}
+.message{font-size:15px;color:#b9c8df}
+.board-wrap{background:#07101d;border:8px solid #1b3654;border-radius:22px;box-shadow:inset 0 0 0 2px #3b6287,0 18px 45px #0008;padding:7px}
+.board{display:grid;grid-template-columns:repeat(8,1fr);grid-auto-rows:42px;gap:4px;max-height:72vh;overflow:hidden}
+.block{border:0;border-radius:10px;background:#111b2b;box-shadow:inset 0 -5px 0 #07101b,inset 0 2px 5px #ffffff33;display:flex;align-items:center;justify-content:center;color:transparent;font-size:20px;font-weight:1000;cursor:pointer;transition:.12s;user-select:none}
+.block.filled{color:#fff;text-shadow:0 2px 2px #0008}
+.block:hover{filter:brightness(1.18);transform:translateY(-2px)}
+.block.key-focus{outline:4px solid #63e6ff;box-shadow:0 0 18px #63e6ff,inset 0 -5px 0 #07101b;z-index:4}
+.block.hint{animation:hintGlow .7s infinite alternate;outline:4px solid #ffe45c;z-index:3}.block.selected{outline:4px solid #fff;box-shadow:0 0 0 4px #ffd43b, inset 0 -5px 0 #07101b;transform:scale(1.04);z-index:2}.block.cursor{outline:4px solid #63e6ff;box-shadow:0 0 0 3px #63e6ff,inset 0 -5px 0 #07101b;z-index:4}.board{position:relative}.path-line{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible}.path-line line{stroke:#63e6ff;stroke-width:8;stroke-linecap:round;filter:drop-shadow(0 0 5px #63e6ff)}
+.c0{background:linear-gradient(#ff6978,#d93254)} .c1{background:linear-gradient(#ffd45a,#ed9d1e)}
+.c2{background:linear-gradient(#7c8df5,#5966ce)} .c3{background:linear-gradient(#4ddbd0,#20a99e)}
+.c4{background:linear-gradient(#53d4f2,#1da8ca)} .c5{background:linear-gradient(#ffad55,#ef7c22)}
+.controls{display:flex;justify-content:center;gap:10px;margin-top:12px}
+button{border:0;border-radius:14px;padding:12px 22px;font-size:17px;font-weight:900;cursor:pointer}
+#restart{background:#ffd43b;color:#171b27}
+#start{background:#63e6ff;color:#09202a}
+.overlay{position:fixed;inset:0;background:#030712d9;display:none;align-items:center;justify-content:center;z-index:10}
+.modal{width:min(520px,90vw);background:#121e33;border:3px solid #466487;border-radius:24px;padding:30px;text-align:center;box-shadow:0 25px 80px #000}
+.modal h2{font-size:38px;margin:0 0 10px}.modal p{font-size:20px;line-height:1.6;color:#d9e5f5}
+.modal button{margin-top:10px}
+.small{font-size:13px;color:#9db0c9;margin-top:8px;text-align:center}
+@media(max-width:600px){.board{grid-auto-rows:48px;gap:4px}.info{display:block}.message{margin-top:5px}.block{border-radius:7px}}
+</style>
+</head>
+<body>
+<div class="game">
+  <div class="top">
+    <div class="logo">🧱 블럭<span>배틀킹</span></div>
+    <div class="hud">
+      <div class="badge">문제 <span id="q">1</span>/20</div>
+      <div class="badge">점수 <span id="score">0</span></div>
+      <div class="badge timer" id="timer">60</div>
+    </div>
+  </div>
+
+  <div class="info">
+    <div class="target">찾아라! <b id="hint">4글자 사자성어</b></div>
+    <div class="message" id="msg">블럭 4개를 순서대로 눌러 사자성어를 완성하세요!</div>
+  </div>
+
+  <div class="board-wrap"><div class="board" id="board"><svg class="path-line" id="pathLine" aria-hidden="true"></svg></div></div>
+  <div class="controls">
+    <button id="start">▶ 게임 시작</button>
+    <button id="restart">↻ 다시 시작</button>
+  </div>
+  <div class="small">60초 안에 정답 블럭 4개를 찾아보세요. 첫 글자를 클릭한 뒤 방향키로 옆 블럭을 이동하고, 정답 글자에서 Enter를 눌러 이어갈 수 있습니다. 2개를 찾으면 다음 글자 힌트가 나타납니다.</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="resultTitle">게임 종료!</h2>
+    <p id="resultText"></p>
+    <button id="again">다시 도전하기</button>
+  </div>
+</div>
+
+<script>
+const idioms=[
+"연중행사","인사불성","신문기자","공동생활","동성동본",
+"공명정대","일구이언","만민평등","시간문제","동고동락",
+"인명재천","애국애족","구사일생","시민사회","각자도생",
+"야생동물","영재교육","동서고금","인해전술","요산요수"
+];
+const meanings=[
+"매년 정해진 때에 하는 행사","정신을 잃어 의식이 없는 상태","신문에서 기사를 쓰는 사람","여러 사람이 함께 생활함","같은 성씨와 같은 본관을 가짐",
+"공평하고 사사로움이 없이 떳떳함","한 입으로 두 말을 함","모든 사람은 평등함","시간에 관한 문제","괴로움과 즐거움을 함께함",
+"사람의 목숨은 하늘에 달려 있음","나라를 사랑하고 민족을 사랑함","죽을 고비에서 간신히 살아남음","시민이 중심이 되는 사회","각자가 자기의 삶을 스스로 살아감",
+"자연에서 살아가는 동물","뛰어난 재능을 가진 사람을 위한 교육","동서양과 옛날과 지금을 아울러 이르는 말","사람을 이용해 적을 포위하고 공격하는 전술","산을 좋아하고 물을 좋아함"
+];
+
+
+
+const colors=["c0","c1","c2","c3","c4","c5"];
+const board=document.getElementById("board"), timerEl=document.getElementById("timer");
+const scoreEl=document.getElementById("score"), qEl=document.getElementById("q"), msg=document.getElementById("msg");
+const overlay=document.getElementById("overlay"), resultTitle=document.getElementById("resultTitle"), resultText=document.getElementById("resultText");
+let question=0, score=0, time=60, selected=[], running=false, timer=null, target="", hintShown=false, keyboardPos=null;
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function makeBoard(){
+  board.innerHTML='<svg class="path-line" id="pathLine" aria-hidden="true"></svg>';
+  target=idioms[question];
+  cursorIndex=0; keyboardMode=false;
+  const chars=target.split("");
+  // 64칸: 정답 4개 + 주변에 다양한 방해 글자를 충분히 배치
+  const pool="가나다라마바사아자차카타파하학교학생배움생활사회시간문제행사동물교육국민세계";
+  let letters=[];
+  // 정답 글자 각각 여러 개 넣되, 실제 정답 경로는 인접하지 않아도 클릭 순서로 찾게 함
+  chars.forEach(ch=>letters.push({ch,correct:true}));
+  while(letters.length<64){
+    letters.push({ch:pool[Math.floor(Math.random()*pool.length)],correct:false});
+  }
+  shuffle(letters);
+  letters.forEach((item,i)=>{
+    const b=document.createElement("button");
+    b.className="block filled "+colors[i%colors.length];
+    b.textContent=item.ch;
+    b.dataset.correct=item.correct?"1":"0";
+    b.dataset.char=item.ch;
+    b.dataset.index=i;
+    b.addEventListener("click",()=>pick(b));
+    board.appendChild(b);
+  });
+  qEl.textContent=question+1;
+  msg.textContent="💡 "+meanings[question]+"  ·  가로·세로·대각선으로 이어보세요!";
+  selected=[]; hintShown=false; keyboardPos=null;
+}
+function showHint(){
+  if(hintShown || selected.length < 2 || selected.length >= 4) return;
+  hintShown=true;
+  const need=target[selected.length];
+  const blocks=[...document.querySelectorAll(".block")];
+  const next=blocks.find(x=>x.dataset.char===need && !selected.includes(x));
+  if(next){
+    next.classList.add("hint");
+    msg.textContent=`💡 힌트! 다음 글자 「${need}」 블럭이 반짝입니다!`;
+    setTimeout(()=>next.classList.remove("hint"),5000);
+  }
+}
+function moveByKey(dr,dc){
+  if(!running) return;
+  const blocks=[...document.querySelectorAll(".block")];
+  if(!blocks.length) return;
+  let idx;
+  if(keyboardPos===null){
+    if(selected.length===0){
+      msg.textContent="⌨️ 먼저 첫 글자 「"+target[0]+"」 블럭을 클릭한 뒤 방향키로 이어보세요!";
+      return;
+    }
+    idx=+selected[selected.length-1].dataset.index;
+  }else idx=keyboardPos;
+  const r=Math.floor(idx/8), c=idx%8;
+  const nr=r+dr, nc=c+dc;
+  if(nr<0||nr>=8||nc<0||nc>=8) return;
+  const next=blocks[nr*8+nc];
+  keyboardPos=nr*8+nc;
+  next.focus();
+  next.classList.add("key-focus");
+  setTimeout(()=>next.classList.remove("key-focus"),350);
+  const need=target[selected.length];
+  if(selected.length>0 && next.dataset.char===need){
+    pick(next);
+  }else if(selected.length>0){
+    msg.textContent="↔ 다음 글자 「"+need+"」를 찾아 방향키로 이동하세요!";
+  }else{
+    msg.textContent="⌨️ 방향키로 「"+target[0]+"」 블럭을 찾아 Enter로 선택할 수 있어요.";
+  }
+}
+
+document.addEventListener("keydown",e=>{
+  if(!running) return;
+  const keys={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]};
+  if(keys[e.key]){ e.preventDefault(); moveByKey(...keys[e.key]); return; }
+  if(e.key==="Enter" && keyboardPos!==null){
+    e.preventDefault();
+    const b=document.querySelector(`.block[data-index="${keyboardPos}"]`);
+    if(b) pick(b);
+  }
+});
+
+function getBlock(i){return [...document.querySelectorAll(".block")][i];}
+function updatePath(){
+  const svg=document.getElementById("pathLine"); if(!svg) return;
+  const rect=board.getBoundingClientRect(); svg.setAttribute("viewBox",`0 0 ${rect.width} ${rect.height}`);
+  svg.innerHTML="";
+  for(let i=1;i<selected.length;i++){
+    const a=selected[i-1].getBoundingClientRect(), b=selected[i].getBoundingClientRect();
+    const br=board.getBoundingClientRect();
+    const x1=a.left+a.width/2-br.left, y1=a.top+a.height/2-br.top;
+    const x2=b.left+b.width/2-br.left, y2=b.top+b.height/2-br.top;
+    const line=document.createElementNS("http://www.w3.org/2000/svg","line");
+    line.setAttribute("x1",x1); line.setAttribute("y1",y1); line.setAttribute("x2",x2); line.setAttribute("y2",y2); svg.appendChild(line);
+  }
+}
+function moveCursor(dr,dc){
+  const r=Math.floor(cursorIndex/8), c=cursorIndex%8, nr=r+dr, nc=c+dc;
+  if(nr<0||nr>=8||nc<0||nc>=8)return;
+  cursorIndex=nr*8+nc; keyboardMode=true;
+  document.querySelectorAll(".cursor").forEach(x=>x.classList.remove("cursor"));
+  const b=getBlock(cursorIndex); if(b)b.classList.add("cursor");
+}
+function chooseCursor(){
+  const b=getBlock(cursorIndex); if(!b)return;
+  // 첫 선택은 현재 블럭, 이후에는 인접 이동한 블럭을 선택
+  pick(b);
+  updatePath();
+}
+function pick(b){
+  if(!running)return;
+  if(selected.includes(b))return;
+  const need=target[selected.length];
+  if(selected.length>0){ const prev=+selected[selected.length-1].dataset.index, cur=+b.dataset.index; const pr=Math.floor(prev/8), pc=prev%8, cr=Math.floor(cur/8), cc=cur%8; if(Math.max(Math.abs(pr-cr),Math.abs(pc-cc))!==1){ selected.forEach(x=>x.classList.remove("selected")); selected=[]; document.querySelectorAll(".cursor").forEach(x=>x.classList.remove("cursor")); updatePath(); msg.textContent="↔ 바로 옆 블럭(가로·세로·대각선)으로 이어주세요!"; return; }}
+  if(b.dataset.char!==need){
+    selected.forEach(x=>x.classList.remove("selected"));
+    selected=[];
+    document.querySelectorAll(".cursor").forEach(x=>x.classList.remove("cursor"));
+    updatePath();
+    hintShown=false;
+    document.querySelectorAll(".hint").forEach(x=>x.classList.remove("hint"));
+    msg.textContent="앗! 순서가 달라요. 다시 찾아보세요! 🔄";
+    return;
+  }
+  b.classList.add("selected");
+  selected.push(b);
+  cursorIndex=+b.dataset.index; keyboardMode=false;
+  updatePath();
+  if(selected.length===2) showHint();
+  if(selected.length===4){
+    selected.forEach((x,i)=>{
+      setTimeout(()=>{x.style.transform="scale(0) rotate(20deg)";x.style.opacity="0"},i*70);
+    });
+    score+=100+(time*3); scoreEl.textContent=score;
+    updatePath();
+    msg.textContent="🎉 정답! 블럭 클리어!";
+    running=false; clearInterval(timer);
+    setTimeout(nextQuestion,650);
+  }
+}
+function start(){
+  overlay.style.display="none"; question=0; score=0; scoreEl.textContent=0; running=true; time=60;
+  makeBoard(); updateTimer();
+  clearInterval(timer); timer=setInterval(()=>{time--;updateTimer();if(time<=0)endGame()},1000);
+}
+function updateTimer(){
+  timerEl.textContent=time;
+  timerEl.classList.toggle("danger",time<=8);
+}
+function nextQuestion(){
+  question++;
+  if(question>=idioms.length){finishAll();return;}
+  time=60; running=true; makeBoard(); updateTimer();
+  clearInterval(timer); timer=setInterval(()=>{time--;updateTimer();if(time<=0)endGame()},1000);
+}
+function endGame(){
+  running=false;clearInterval(timer);
+  msg.textContent="시간 종료! ⏰";
+  setTimeout(()=>{resultTitle.textContent="시간 종료!";resultText.innerHTML=`현재 점수 <b>${score}</b>점<br>${question+1}번 문제에서 멈췄어요.<br>다시 도전해서 기록을 올려보세요!`;overlay.style.display="flex"},350);
+}
+function finishAll(){
+  running=false;clearInterval(timer);
+  resultTitle.textContent="🏆 블럭배틀킹!";
+  resultText.innerHTML=`20문제 완주 성공!<br>최종 점수 <b>${score}</b>점<br>사자성어 블럭을 모두 클리어했습니다!`;
+  overlay.style.display="flex";
+}
+document.addEventListener("keydown",(e)=>{
+  if(!running || overlay.style.display==="flex") return;
+  const active=document.activeElement;
+  if(active && (active.tagName==="INPUT"||active.tagName==="TEXTAREA")) return;
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){
+    e.preventDefault();
+    if(e.key==="ArrowUp")moveCursor(-1,0);
+    if(e.key==="ArrowDown")moveCursor(1,0);
+    if(e.key==="ArrowLeft")moveCursor(0,-1);
+    if(e.key==="ArrowRight")moveCursor(0,1);
+  }
+  if(e.key==="Enter" || e.key===" "){e.preventDefault(); chooseCursor();}
+});
+window.addEventListener("resize",updatePath);
+document.getElementById("start").onclick=start;
+document.getElementById("restart").onclick=start;
+document.getElementById("again").onclick=start;
+makeBoard();
+</script>
+</body>
+</html>
